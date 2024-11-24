@@ -6,7 +6,7 @@ const authRoutes = require("./Routes/Auth");
 const User = require("./models/User");
 app.use(express.json());
 const port = process.env.PORT || 3000;
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("./db/db");
 app.use(
   cors({
@@ -49,6 +49,7 @@ async function run() {
     app.get("/protected-route", verifyToken, (req, res) => {
       res.status(200).json({ message: "You have access", user: req.user });
     });
+
     //get user by email
     app.get("/user/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
@@ -59,15 +60,45 @@ async function run() {
       res.send(result);
     });
 
+    //get all users
     app.get("/all-users", verifyToken, async (req, res) => {
       const result = await userCollection.find().toArray();
       res.send(result);
     });
 
-     app.get("/all-users-pending", async (req, res) => {
-       const result = await userCollection.find().toArray();
-       res.send(result);
-     });
+    // get all pending user for update sattus
+    app.get("/all-users-pending", async (req, res) => {
+      const result = await userCollection.find().toArray();
+      res.send(result);
+    });
+
+    //update user sattus
+    app.put("/user-update/:id", verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const userData = req.body;
+      console.log(userData);
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = { $set: {} };
+      if (userData.status === "Pending") {
+        updateDoc.$set.status = "Approved";
+      }
+      if (userData.status === "Approved") {
+        updateDoc.$set.status = "Pending";
+      }
+      if (userData?.newBonus === "InComplete") {
+        if (userData.role === "agent") {
+          updateDoc.$set.amount = 25646;
+        }
+        if (userData.role === "user") {
+          updateDoc.$set.amount = 41;
+        }
+        updateDoc.$set.newBonus = "Complete";
+      }
+      console.log(updateDoc);
+      const result = await userCollection.updateOne(filter, updateDoc);
+      // res.send(result);
+      res.status(200).json({ message: "Update data successful", result });
+    });
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();

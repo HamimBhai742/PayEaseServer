@@ -25,6 +25,7 @@ router.post("/register", async (req, res) => {
       pin,
       image,
       status: "Pending",
+      newBonus: "InComplete",
     });
     newUser.pin = await bcrypt.hash(pin, 10);
     console.log(newUser);
