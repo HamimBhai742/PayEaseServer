@@ -17,9 +17,17 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ error: "Email or phone already exists" });
     }
     // Create New User
-    let newUser = new User({ name, email, phone, role, pin, image });
+    let newUser = new User({
+      name,
+      email,
+      phone,
+      role,
+      pin,
+      image,
+      status: "Pending",
+    });
     newUser.pin = await bcrypt.hash(pin, 10);
-    console.log(newUser)
+    console.log(newUser);
     await newUser.save();
     res.status(201).json({ message: "User registered successfully!" });
   } catch (err) {
@@ -46,21 +54,30 @@ router.post("/login", async (req, res) => {
     }
 
     // Generate JWT
-    const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, {
-      expiresIn: "1h",
-    });
-
-    res.status(200).json({
-      message: "Login successful",
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-      },
-    });
+    // const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, {
+    //   expiresIn: "10s",
+    // });
+    jwt.sign(
+      { email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" },
+      (err, token) => {
+        if (err) {
+          console.log("error 404040", err);
+        }
+        res.status(200).json({
+          message: "Login successful",
+          token,
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            role: user.role,
+          },
+        });
+      }
+    );
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
