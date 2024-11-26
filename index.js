@@ -40,11 +40,24 @@ const client = new MongoClient(uri, {
   },
 });
 
+//transaction id create
+function generateTransactionId() {
+  const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"; // Possible characters
+  let transactionId = "";
+
+  for (let i = 0; i < 10; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length); // Get random index
+    transactionId += characters[randomIndex]; // Append random character
+  }
+
+  return transactionId;
+}
+
 async function run() {
   try {
     const database = client.db("payeaseDB");
     const userCollection = database.collection("users");
-
+    const cashCollection = database.collection("cash");
     // protected route for all users
     app.get("/protected-route", verifyToken, (req, res) => {
       res.status(200).json({ message: "You have access", user: req.user });
@@ -98,6 +111,170 @@ async function run() {
       const result = await userCollection.updateOne(filter, updateDoc);
       // res.send(result);
       res.status(200).json({ message: "Update data successful", result });
+    });
+
+    //update user amount
+    app.put("/update-user-amount", verifyToken, async (req, res) => {
+      const userData = req.query;
+      const userEmail = userData.email;
+      const fiUserEmail = userData.emailFi;
+      let sendAmount = parseFloat(userData.amount);
+      const user = await userCollection.findOne({ email: userEmail });
+      const fiUser = await userCollection.findOne({ email: fiUserEmail });
+      console.log(fiUser);
+      console.log(user);
+      // if (sendAmount >= 100) {
+      //   console.log("lllll");
+      //   parseFloat(sendAmount + 5);
+      // }
+      console.log(userEmail, fiUserEmail, sendAmount, typeof sendAmount);
+      const queryUser = {
+        email: userEmail,
+      };
+      const queryFiUser = {
+        email: fiUserEmail,
+      };
+      let updateDocUser = { $set: {} };
+      let updateDocFiUser = { $set: {} };
+      let fiUserDb = {};
+      let userDb = {};
+      if (sendAmount >= 100) {
+        console.log("lllll");
+        let sendBl = parseFloat(sendAmount + 5);
+        console.log(sendBl);
+        let avilableBlance = parseFloat(user.amount - sendBl);
+        console.log(avilableBlance);
+        let fiUserBl = parseFloat(fiUser.amount);
+        let totalBl = fiUserBl + sendBl;
+        console.log(totalBl);
+        const now = new Date();
+        userDb = {
+          name: fiUser.name,
+          email: user.email,
+          phone: fiUser.phone,
+          time: now,
+          date: `${new Date().getHours() % 12 || 12}:${new Date()
+            .getMinutes()
+            .toString()
+            .padStart(2, "0")}${
+            new Date().getHours() >= 12 ? "pm" : "am"
+          } ${new Date().getDate().toString().padStart(2, "0")}/${(
+            new Date().getMonth() + 1
+          )
+            .toString()
+            .padStart(2, "0")}/${new Date().getFullYear().toString().slice(2)}`,
+          type: "Send Money",
+          reference: "",
+          amount: sendAmount,
+          charge: 5,
+          trxID: generateTransactionId(),
+        };
+        fiUserDb = {
+          name: user.name,
+          email: fiUser.email,
+          phone: now,
+          time: new Date(),
+          date: `${new Date().getHours() % 12 || 12}:${new Date()
+            .getMinutes()
+            .toString()
+            .padStart(2, "0")}${
+            new Date().getHours() >= 12 ? "pm" : "am"
+          } ${new Date().getDate().toString().padStart(2, "0")}/${(
+            new Date().getMonth() + 1
+          )
+            .toString()
+            .padStart(2, "0")}/${new Date().getFullYear().toString().slice(2)}`,
+          type: "Received Money",
+          reference: "",
+          amount: sendAmount,
+          charge: 5,
+          trxID: generateTransactionId(),
+        };
+        console.log(userDb, fiUserDb);
+        updateDocUser.$set.amount = avilableBlance;
+        updateDocFiUser.$set.amount = totalBl;
+      }
+
+      if (sendAmount < 100) {
+        console.log("lllll");
+        let sendBl = parseFloat(sendAmount);
+        console.log(sendBl);
+        let avilableBlance = parseFloat(user.amount - sendBl);
+        console.log(avilableBlance);
+        let fiUserBl = parseFloat(fiUser.amount);
+        let totalBl = fiUserBl + sendBl;
+        console.log(totalBl);
+        const now = new Date();
+        userDb = {
+          name: fiUser.name,
+          email: user.email,
+          phone: fiUser.phone,
+          time: now,
+          date: `${new Date().getHours() % 12 || 12}:${new Date()
+            .getMinutes()
+            .toString()
+            .padStart(2, "0")}${
+            new Date().getHours() >= 12 ? "pm" : "am"
+          } ${new Date().getDate().toString().padStart(2, "0")}/${(
+            new Date().getMonth() + 1
+          )
+            .toString()
+            .padStart(2, "0")}/${new Date().getFullYear().toString().slice(2)}`,
+          type: "Send Money",
+          reference: "",
+          amount: sendAmount,
+          charge: 0,
+          trxID: generateTransactionId(),
+        };
+        fiUserDb = {
+          name: user.name,
+          email: fiUser.email,
+          phone: user.phone,
+          time: now,
+          date: `${new Date().getHours() % 12 || 12}:${new Date()
+            .getMinutes()
+            .toString()
+            .padStart(2, "0")}${
+            new Date().getHours() >= 12 ? "pm" : "am"
+          } ${new Date().getDate().toString().padStart(2, "0")}/${(
+            new Date().getMonth() + 1
+          )
+            .toString()
+            .padStart(2, "0")}/${new Date().getFullYear().toString().slice(2)}`,
+          type: "Received Money",
+          reference: "",
+          amount: sendAmount,
+          charge: 0,
+          trxID: generateTransactionId(),
+        };
+        console.log(userDb, fiUserDb);
+        updateDocUser.$set.amount = avilableBlance;
+        updateDocFiUser.$set.amount = totalBl;
+      }
+      const options = { ordered: true };
+      const documents = [userDb, fiUserDb];
+      const createCash = await cashCollection.insertMany(documents, options);
+      const resultUser = await userCollection.updateOne(
+        queryUser,
+        updateDocUser
+      );
+      const resultFiUser = await userCollection.updateOne(
+        queryFiUser,
+        updateDocFiUser
+      );
+      res.status(200).json({
+        resultUser,
+        resultFiUser,
+        createCash,
+        message: "User amount update successful",
+      });
+    });
+
+    //get transaction for user
+    app.get("/transaction/:email", verifyToken, async (req, res) => {
+      const query = { email: req.params.email };
+      const result = await cashCollection.find(query).toArray();
+      res.status(200).json({ message: "Success", result });
     });
   } finally {
     // Ensures that the client will close when you finish/error
